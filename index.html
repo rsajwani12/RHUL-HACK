@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>RelayAI</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 24px auto;
+    }
+    #log {
+      white-space: pre-wrap;
+      border: 1px solid #ddd;
+      padding: 12px;
+      border-radius: 10px;
+      height: 380px;
+      overflow: auto;
+      background: #fafafa;
+    }
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+    }
+    input {
+      width: 70%;
+    }
+    button {
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>RelayAI (Gemini + ElevenLabs)</h2>
+  <div id="log"></div><br/>
+
+  <input id="msg" placeholder="Type your request..." />
+  <button onclick="send()">Send</button>
+
+  <script>
+    const log = document.getElementById("log");
+    const sessionId = crypto.randomUUID();
+
+    function write(line) {
+      log.textContent += line + "\n";
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function speak(text) {
+      try {
+        const r = await fetch("/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+
+        if (!r.ok) return;
+
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.play();
+      } catch (e) {
+        console.error("TTS error:", e);
+      }
+    }
+
+    async function send() {
+      const input = document.getElementById("msg");
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = "";
+      write("You: " + text);
+
+      const res = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, text })
+      });
+
+      const data = await res.json();
+
+      if (data.need_user_input) {
+        write("RelayAI: " + data.question);
+        speak(data.question);
+      } 
+      else if (data.final) {
+        write("RelayAI FINAL:");
+        write(JSON.stringify(data.final, null, 2));
+        write("Proof Hash: " + data.proofHash);
+        speak("Task completed. Please check the result on screen.");
+      } 
+      else {
+        write("RelayAI:");
+        write(JSON.stringify(data, null, 2));
+      }
+    }
+  </script>
+
+</body>
+</html>
